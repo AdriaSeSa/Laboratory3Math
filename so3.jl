@@ -23,7 +23,7 @@ function init_canvas(h,w)
 end
 
 # make the canvas
-the_canvas = init_canvas(500,500)
+the_canvas = init_canvas(800,800)
 
 
 # --------- part 2 -------------
@@ -31,6 +31,8 @@ the_canvas = init_canvas(500,500)
 
 # a widget for status messages that we define at the beginning so we can use it from the callback
 msg_label = GtkLabel("No message at this time")
+
+rotation_matrix = [0 0 0; 0 0 0; 0 0 0]
 
 # defaults
 default_value = Dict("phi" => 0, "v_x" => 1, "v_y" => 0, "v_z" => 0, "alpha" => 70, "q_s" => 0,  "q_x" => 0,  "q_y" => 0,  "q_z" => 0)
@@ -59,6 +61,10 @@ function output_normalized(label, value)
     GAccessor.text(find_by_name(normalized_labels, label), @sprintf("%3.2f", value))
 end
 
+function output_normalized_string(label, value)
+    GAccessor.text(find_by_name(normalized_labels, label), value)
+end
+
 function normalize_v()
     v_x = read_original_box("v_x")
     v_y = read_original_box("v_y")
@@ -78,7 +84,7 @@ function normalize_quat()
     q_y = read_original_box("q_y")
     q_z = read_original_box("q_z")
 
-    q = Quaternion(q_s, q_x, q_y, q_z, false)
+    q = Quaternions.Quaternion(q_s, q_x, q_y, q_z, false)
 
     q = q/abs(q)
 
@@ -96,6 +102,29 @@ function normalize_phi()
     output_normalized("phi_normalized", read_original_box("phi"))
 end
 
+function update_rotation_matrix()
+
+    q_s = read_normalized_label("q_s_normalized")
+    q_x = read_normalized_label("q_x_normalized")
+    q_y = read_normalized_label("q_y_normalized")
+    q_z = read_normalized_label("q_z_normalized")
+
+    q = Quaternions.Quaternion(q_s, q_x, q_y, q_z, false)
+
+    matrix_from_quat = quat_to_mat(q)
+
+    variable_values = ["x", "y", "z"]
+
+    for i = 1:3
+        println("test")
+        for j = 1:3
+            item_n = string(variable_values[i]) * string(j)
+            output_normalized("matrix_" * item_n ,matrix_from_quat[i, j])
+        end
+    end
+
+end
+
 
 function entry_box_callback(widget)
     # who called us?
@@ -104,6 +133,8 @@ function entry_box_callback(widget)
 
     # trumpet this out to the world
     GAccessor.text(msg_label, name * " changed to " * text)
+
+    #println(name[1])
 
     # change the correct normalized output
     if name[1] == 'v'
@@ -114,6 +145,7 @@ function entry_box_callback(widget)
         normalize_phi()
     elseif name[1] == 'q'
         normalize_quat()
+        update_rotation_matrix()
     end
 
     # actually draw the changes
@@ -192,6 +224,37 @@ function vector_angle_box()
     return vbox
 end
 
+function rotation_matrix_label()
+    vbox = GtkBox(:v)
+
+    hbox = GtkBox(:h)
+
+    push!(vbox, bold_label("Rotation Matrix"))
+
+    variable_name = ["x", "y", "z"]
+
+    for i = 1:3
+        separation = GtkLabel("\t\t")
+        columnBox = GtkBox(:v)
+        push!(columnBox, GtkLabel(variable_name[i]))
+        push!(hbox, separation)
+        push!(hbox, columnBox)
+        for j = 1:3
+            # Set labels with name "matrix_xj", "matrix_yj", "matrix_zj"
+            item = GtkLabel("0.00")
+            item_num = string(variable_name[i]) * string(j)
+            set_gtk_property!(item, :name, "matrix_" * item_num)
+            push!(normalized_labels, item)
+            push!(columnBox, item)
+        end
+    end
+
+    push!(vbox, hbox)
+
+    return vbox
+
+end
+
 # Now put everything into the window,
 # including the canvas
 
@@ -204,7 +267,11 @@ function init_window(win, canvas)
     push!(control_box, vector_angle_box())
     push!(control_box, GtkLabel(""))
     push!(control_box, quat_box())
+    push!(control_box, GtkLabel(""))
+    push!(control_box, rotation_matrix_label())
+    push!(control_box, GtkLabel(""))
     push!(control_box, msg_label)
+
 
     # make another box for the drawing canvas
     canvas_box = GtkBox(:v)
