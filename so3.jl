@@ -1,7 +1,7 @@
 # the packages we need
 include("CostumeFunctions.jl")
 
-using Gtk, Graphics, Logging, Printf, Quaternions
+using Gtk, Graphics, Logging, Printf
 
 # the main window
 win = GtkWindow("SO(3)")
@@ -40,6 +40,8 @@ default_value = Dict("phi" => 0, "v_x" => 1, "v_y" => 0, "v_z" => 0, "alpha" => 
 # an array to store the entry boxes
 entry_list = []
 
+slider_list = []
+
 # an array of labels that we use to display normalized inputs,
 # and which also gets modified from the callback
 normalized_labels = []
@@ -64,6 +66,19 @@ end
 function output_normalized_string(label, value)
     GAccessor.text(find_by_name(normalized_labels, label), value)
 end
+
+function output_slider(label, value)
+    #Gtk.GAccessor.value(find_by_name(slider_list, label), value)
+    #println(value)
+end
+
+#=function output_original(label, value)
+    box = find_by_name(entry_list, label)
+    text = string(value)
+    #println(box)
+    println(text)
+    Gtk.GAccessor.value(box, text)
+end=#
 
 function normalize_v()
     v_x = read_original_box("v_x")
@@ -95,15 +110,38 @@ function normalize_quat()
 end
 
 function normalize_alpha()
-    output_normalized("alpha_normalized", read_original_box("alpha"))
+    output_normalized("alpha_normalized", read_slider_box("alpha"))
 end
 
-function normalize_phi()
-    output_normalized("phi_normalized", read_original_box("phi"))
+function update_quat_rotation_matrix()
+
+    vx = read_normalized_label("v_x_normalized")
+    vy = read_normalized_label("v_y_normalized")
+    vz = read_normalized_label("v_z_normalized")
+    a = read_normalized_label("alpha_normalized")
+
+    q = axis_angle_to_quat(EulerAngleAxis(a, [vx; vy; vz]))
+    output_normalized("q_s_normalized", q.s)
+    output_normalized("q_x_normalized", q.v1)
+    output_normalized("q_y_normalized", q.v2)
+    output_normalized("q_z_normalized", q.v3)
+
+    println("matrix_from_quat")
+
+    matrix_from_quat = quat_to_mat(q)
+
+    variable_values = ["x", "y", "z"]
+
+    for i = 1:3
+        for j = 1:3
+            item_n = string(variable_values[i]) * string(j)
+            output_normalized("matrix_" * item_n ,matrix_from_quat[i, j])
+        end
+    end
+
 end
 
-function update_rotation_matrix()
-
+function update_rotation_matrix_axis_angle()
     q_s = read_normalized_label("q_s_normalized")
     q_x = read_normalized_label("q_x_normalized")
     q_y = read_normalized_label("q_y_normalized")
@@ -116,15 +154,35 @@ function update_rotation_matrix()
     variable_values = ["x", "y", "z"]
 
     for i = 1:3
-        println("test")
         for j = 1:3
             item_n = string(variable_values[i]) * string(j)
             output_normalized("matrix_" * item_n ,matrix_from_quat[i, j])
         end
     end
+    vector_angle = quat_to_axis_angle(q)
+    v = [vector_angle.v[1] vector_angle.v[2] vector_angle.v[3]]
+    output_normalized("v_x_normalized", v[1])
+    output_normalized("v_y_normalized", v[2])
+    output_normalized("v_z_normalized", v[3])
+    output_normalized("alpha_normalized", rad2deg(vector_angle.a))
 
+    # actually draw the changes
+    draw_the_canvas(the_canvas)
+    reveal(the_canvas)
 end
 
+function slider_box_callback(widget)
+    # who called us?
+    name = get_gtk_property(widget, :name, String)
+
+    if name[1] == 'a'
+        normalize_alpha()
+        update_quat_rotation_matrix()
+    end
+    # actually draw the changes
+    draw_the_canvas(the_canvas)
+    reveal(the_canvas)
+end
 
 function entry_box_callback(widget)
     # who called us?
@@ -134,23 +192,44 @@ function entry_box_callback(widget)
     # trumpet this out to the world
     GAccessor.text(msg_label, name * " changed to " * text)
 
-    #println(name[1])
-
     # change the correct normalized output
     if name[1] == 'v'
         normalize_v()
-    elseif name[1] == 'a'
-        normalize_alpha()
-    elseif name[1] == 'p'
-        normalize_phi()
+        update_quat_rotation_matrix()
     elseif name[1] == 'q'
         normalize_quat()
-        update_rotation_matrix()
+        update_rotation_matrix_axis_angle()
     end
 
     # actually draw the changes
     draw_the_canvas(the_canvas)
     reveal(the_canvas)
+end
+
+function slider_box(label_string, min, max)
+    # set up the entry
+    entry = GtkScale(false, min:max)
+    set_gtk_property!(entry,:name, label_string)
+
+    push!(slider_list, entry)
+
+    # make it communicate changes
+    signal_connect(slider_box_callback, entry, "value-changed")
+
+    # set up the label and normalized output
+    label = GtkLabel(label_string)
+    normalized_output = GtkLabel("0")
+    set_gtk_property!(normalized_output, :name, label_string * "_normalized")
+
+    # export the normalized output for further use
+    push!(normalized_labels, normalized_output)
+
+    # make and return the containing box
+    hbox = GtkButtonBox(:h)
+    push!(hbox, entry)
+    push!(hbox, normalized_output)
+
+    return hbox
 end
 
 function entry_box(label_string)
@@ -161,7 +240,7 @@ function entry_box(label_string)
     set_gtk_property!(entry,:name, label_string)
 
     default_text = string(default_value[label_string])
-    GAccessor.text(entry, default_text)
+    GAccessor.text(entry,default_text)
     push!(entry_list, entry)
 
     # make it communicate changes
@@ -192,8 +271,12 @@ end
 
 function phi_box()
     vbox = GtkBox(:v)
+    hbox = GtkBox(:h)
     push!(vbox, bold_label("Coordinate rotation"))
-    push!(vbox, entry_box("phi"))
+    push!(hbox, GtkLabel("\t   phi"))
+    push!(hbox, GtkLabel("\t"))
+    push!(hbox, slider_box("phi", 0, 360))
+    push!(vbox, hbox)
     return vbox
 end
 
@@ -211,16 +294,23 @@ end
 
 function vector_angle_box()
     vbox = GtkBox(:v)
-
+    hbox = GtkBox(:h)
     push!(vbox, bold_label("Axis"))
 
     for label in ["v_x", "v_y", "v_z"]
         push!(vbox, entry_box(label))
     end
 
+    push!(vbox, GtkLabel(""))
+
     push!(vbox, bold_label("Angle"))
 
-    push!(vbox, entry_box("alpha"))
+    push!(hbox, GtkLabel("\t alpha"))
+    push!(hbox, GtkLabel("\t"))
+    push!(hbox, slider_box("alpha", 0, 180))
+    push!(vbox, hbox)
+
+
     return vbox
 end
 
@@ -272,7 +362,6 @@ function init_window(win, canvas)
     push!(control_box, GtkLabel(""))
     push!(control_box, msg_label)
 
-
     # make another box for the drawing canvas
     canvas_box = GtkBox(:v)
     push!(canvas_box, canvas)
@@ -285,6 +374,8 @@ function init_window(win, canvas)
 
     # put it all inside the window
     push!(win, global_box)
+
+
 end
 
 
@@ -303,6 +394,12 @@ end
 
 function read_normalized_label(name)
     return read_box(name, normalized_labels, :label)
+end
+
+function read_slider_box(name)
+    the_box = find_by_name(slider_list, name)
+    result = Gtk.GAccessor.value(the_box)
+    return result
 end
 
 # Draw the axis vectors of the axonometry
@@ -365,26 +462,29 @@ end
 
 function draw_vector(origin, V, alpha, ctx)
 
+    #Transfrom alpha to radians
+    alpha = deg2rad(alpha)
+
     # Get line
     set_line_width(ctx, 5)
     set_source_rgb(ctx, 0, 0, 0)
     # Create circle to indicate direction
-    circle(ctx, origin[1] + V[1] * alpha, origin[2] - V[2] * alpha, 5)
+    circle(ctx, origin[1] + V[1] * alpha * render_scale, origin[2] - V[2] * alpha * render_scale, 5)
     fill(ctx)
     # Create line
     move_to(ctx, origin[1], origin[2])
-    line_to(ctx, origin[1] + V[1] * alpha, origin[2] - V[2] * alpha)
+    line_to(ctx, origin[1] + V[1] * alpha * render_scale, origin[2] - V[2] * alpha * render_scale)
     stroke(ctx)
 
     # Repeat
     set_line_width(ctx, 2)
     set_source_rgb(ctx, 1, 1, 1)
 
-    circle(ctx, origin[1] + V[1] * alpha, origin[2] - V[2] * alpha, 2)
+    circle(ctx, origin[1] + V[1] * alpha * render_scale, origin[2] - V[2] * alpha * render_scale, 2)
     fill(ctx)
 
     move_to(ctx, origin[1], origin[2])
-    line_to(ctx, origin[1] + V[1] * alpha, origin[2] - V[2] * alpha)
+    line_to(ctx, origin[1] + V[1] * alpha * render_scale, origin[2] - V[2] * alpha * render_scale)
     stroke(ctx)
 end
 
@@ -399,14 +499,12 @@ function draw_the_canvas(canvas)
     fill(ctx)
 
     # read some normalized boxes and draw a line
-    phi = read_normalized_label("phi_normalized")
+    #phi = read_normalized_label("phi_normalized")
+    phi = read_slider_box("phi")
     v_x = read_normalized_label("v_x_normalized")
     v_y = read_normalized_label("v_y_normalized")
     v_z = read_normalized_label("v_z_normalized")
-    alpha = read_original_box("alpha")
-
-    #Check if alpha is on the 0 to 180 range
-    alpha > 180 ? alpha = 180 : alpha < 0 ? alpha = 0 : alpha = alpha
+    alpha = read_slider_box("alpha")
 
     #Define origin
     origin = [250 250]
@@ -437,8 +535,6 @@ function draw_the_canvas(canvas)
     # Draw vector on screen
     draw_vector(origin, V, alpha, ctx)
 end
-
-
 # -------- initialize everything ---------
 
 
