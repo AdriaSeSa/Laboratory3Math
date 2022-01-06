@@ -216,3 +216,22 @@ function mat_to_quat(R)
 
     return q
 end
+
+function rescale_transalte_vector(V, pos, scale)
+    # Get Vector without considering origin
+    # Change Vector position using pos
+    # Position is on world coordinates (always positive)
+    
+    #Check vector and position are on the correct format
+    V = format_vector_3(V)
+    pos = format_vector_3(pos)
+
+    # Rescale vector
+    V = V*scale
+
+    # Change vector position
+    V = V+pos
+
+    return V
+
+end
