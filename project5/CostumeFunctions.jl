@@ -236,17 +236,7 @@ function rescale_transalte_vector(V, pos, scale)
 
 end
 
-#=qR = Quaternions.Quaternion(0.4082483, 0.4082483, 0.408248, 0.7071068,false)
-
-w = qR * Quaternions.Quaternion(0,1,1,1,false) * conj(qR)
-
-M = quat_to_mat(qR)
-
-v = M * [1;1;1]
-
-println(w)
-println(v)=#
-
+#=
 Z = rotate_phi([1;1;1], 25, [0;0;1])
 Y = rotate_phi(Z, 145, [0;1;0])
 X = rotate_phi(Y, 30, [1;0;0])
@@ -279,7 +269,4 @@ MAB = [Mr[1,1] Mr[1,2] Mr[1,3] 0;
 Mi = inv(MBA)
 
 r1 = MAB * [3, 1, -2, 1]
-r2 = MBA * r1
-println("Result")
-#println(X)
-println(r1)
+r2 = MBA * r1=#
