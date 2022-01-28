@@ -235,38 +235,3 @@ function rescale_transalte_vector(V, pos, scale)
     return V
 
 end
-
-#=
-Z = rotate_phi([1;1;1], 25, [0;0;1])
-Y = rotate_phi(Z, 145, [0;1;0])
-X = rotate_phi(Y, 30, [1;0;0])
-
-Mz = [cosd(25) -sind(25) 0;
-        sind(25) cosd(25) 0;
-        0 0 1]
-My =  [cosd(145) 0 sind(145);
-        0       1           0;
-        -sind(145) 0 cosd(145)]
-
-Mx = [1 0 0;
-    0 cosd(30) -sind(30);
-    0 sind(30) cosd(30)]
-
-Mr = Mx * My * Mz
-
-Mri = inv(Mr)
-
-MBA = [Mri[1,1] Mri[1,2] Mri[1,3] 3;
-        Mri[2,1] Mri[2,2] Mri[2,3] 1;
-        Mri[3,1] Mri[3,2] Mri[3,3] -2;
-        0 0 0 1]
-
-MAB = [Mr[1,1] Mr[1,2] Mr[1,3] 0;
-        Mr[2,1] Mr[2,2] Mr[2,3] 0;
-        Mr[3,1] Mr[3,2] Mr[3,3] 0;
-        0 0 0 1]
-
-Mi = inv(MBA)
-
-r1 = MAB * [3, 1, -2, 1]
-r2 = MBA * r1=#
